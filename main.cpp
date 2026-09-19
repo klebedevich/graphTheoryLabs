@@ -7,7 +7,9 @@
 #include <queue>
 #include <stack>
 #include <set>
+#include <limits>
 #include <iomanip>
+#include <limits>
 
 using namespace std;
 
@@ -153,7 +155,11 @@ void printMatrix(const vector<vector<int>>& matrix, const string& name) {
     for (int i = 0; i < n; i++) {
         cout << setw(labelW - 1) << i << "|";
         for (int j = 0; j < n; j++) {
-            cout << setw(colW) << matrix[i][j];
+            if (matrix[i][j] == std::numeric_limits<int>::max()) {
+                cout << setw(colW) << "-";
+            } else {
+                cout << setw(colW) << matrix[i][j];
+            }
         }
         cout << "\n";
     }
@@ -496,52 +502,50 @@ void calculateEccentricity(MyGraph& graph) {
 // тип поиска: 1 - мин, 2 - макс
 vector<vector<int>> findPathsOfLength(const vector<vector<int>>& weightMatrix, int pathLength, int searchType) {
     int n = weightMatrix.size();
-    vector<vector<int>> result(n, vector<int>(n, 0));
-    
-    if (pathLength == 1) {
-        result = weightMatrix;
-        return result;
-    }
-    
-    vector<vector<int>> current = weightMatrix;
-    int initValue = (searchType == 1) ? INF : -INF;
-    
+    const int INF_VAL = std::numeric_limits<int>::max();
+
+    // базовый случай: длина 1 — копия матрицы весов, но 0 (нет ребра) заменяется на INF
+    vector<vector<int>> current(n, vector<int>(n, INF_VAL));
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++)
+            if (weightMatrix[i][j] != 0)
+                current[i][j] = weightMatrix[i][j];
+
+    if (pathLength == 1) return current;
+
+    int initValue = (searchType == 1) ? INF_VAL : std::numeric_limits<int>::min();
+
     for (int p = 1; p < pathLength; p++) {
-        vector<vector<int>> next(n, vector<int>(n, 0));
-        
+        vector<vector<int>> next(n, vector<int>(n, INF_VAL));
+
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
                 bool found = false;
                 int bestValue = initValue;
-                
+
                 for (int k = 0; k < n; k++) {
-                    if (current[i][k] != 0 && weightMatrix[k][j] != 0) {
+                    // путь существует, если есть путь i->k длины p и ребро k->j
+                    if (current[i][k] != INF_VAL && weightMatrix[k][j] != 0) {
                         found = true;
                         int pathWeight = current[i][k] + weightMatrix[k][j];
-                        
+
                         if (searchType == 1) {
-                            if (pathWeight < bestValue) {
-                                bestValue = pathWeight;
-                            }
+                            if (pathWeight < bestValue) bestValue = pathWeight;
                         } else {
-                            if (pathWeight > bestValue) {
-                                bestValue = pathWeight;
-                            }
+                            if (pathWeight > bestValue) bestValue = pathWeight;
                         }
                     }
                 }
-                
-                if (found) {
-                    next[i][j] = bestValue;
-                }
+
+                // если пути не нашлось — оставляем INF_VAL (значит "нет пути")
+                if (found) next[i][j] = bestValue;
             }
         }
-        
+
         current = next;
     }
-    
-    result = current;
-    return result;
+
+    return current;
 }
 
 void generateMatrix(MyGraph& graph, vector<vector<int>>& matrix, const string& matrixName, int weightType, RandomGenerator& rng) {
@@ -630,14 +634,14 @@ void shimbellMethod(MyGraph& graph) {
     cin >> pathLength;
 
     if (pathLength == 0) {
-        // единицы на главной диагонали, остальные 0
-        vector<vector<int>> identityMatrix(n, vector<int>(n, 0));
+        // путь длины 0 существует только из вершины в себя (вес 0); остальные - нет пути
+        vector<vector<int>> zeroLenMatrix(n, vector<int>(n, std::numeric_limits<int>::max()));
         for (int i = 0; i < n; i++) {
-            identityMatrix[i][i] = 0;
+            zeroLenMatrix[i][i] = 0;
         }
-        
-        printMatrix(identityMatrix, "матрица минимальных путей");
-        printMatrix(identityMatrix, "матрица максимальных путей");
+
+        printMatrix(zeroLenMatrix, "матрица минимальных путей");
+        printMatrix(zeroLenMatrix, "матрица максимальных путей");
         return;
     }
     
@@ -690,38 +694,38 @@ void countRoutes(MyGraph& graph) {
     
     // сумма матриц смежности в степенях от 0 до n-1
     vector<vector<int>> sum(n, vector<int>(n, 0));
-    
+
     for (int i = 0; i < n; i++) {
         sum[i][i] = 1;
     }
-    
+
     // возводим в степени от 1 до n-1 и суммируем
     for (int p = 1; p < n; p++) {
         vector<vector<int>> power = matrixPower(graph.adjMatrix, p);
-        
+
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
                 sum[i][j] += power[i][j];
             }
         }
     }
-    
-    // вывод матрицы сумм
-    cout << "\nматрица сумм маршрутов (длины от 0 до " << n-1 << "):\n";
+
+    // нет маршрутов -> INT_MAX, чтобы printMatrix отрисовал "-"
+    const int INF_VAL = std::numeric_limits<int>::max();
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
-            cout << sum[i][j] << " ";
+            if (sum[i][j] == 0) sum[i][j] = INF_VAL;
         }
-        cout << endl;
     }
-    
-    // вывод результата для конкретной пары вершин
-    cout << "\nобщее количество маршрутов из вершины " << start 
-         << " в вершину " << end << " (длины от 0 до " << n-1 << "): " 
-         << sum[start][end] << endl;
-    
-    if (sum[start][end] == 0) {
-        cout << "маршрутов не существует\n";
+
+    printMatrix(sum, "матрица сумм маршрутов (длины от 0 до " + to_string(n - 1) + ")");
+
+    cout << "\nобщее количество маршрутов из вершины " << start
+         << " в вершину " << end << " (длины от 0 до " << n - 1 << "): ";
+    if (sum[start][end] == INF_VAL) {
+        cout << "- (маршрутов не существует)\n";
+    } else {
+        cout << sum[start][end] << "\n";
     }
 }
 
@@ -980,17 +984,90 @@ void fordFulkersonUI(MyGraph& graph) {
     int n = graph.verticesCount;
     if (n == 0) return;
 
-    int s, t;
-    cout << "введите источник: ";
-    cin >> s;
-    cout << "введите сток: ";
-    cin >> t;
+    // --- Вспомогательные лямбды ---
 
-    if (s < 0 || s >= n || t < 0 || t >= n || s == t) {
-        cout << "неверные вершины\n";
+    // Кандидаты в истоки: вершины с нулевой входящей степенью
+    auto getSourceCandidates = [&]() -> vector<int> {
+        vector<int> result;
+        for (int v = 0; v < n; v++) {
+            bool hasIncoming = false;
+            for (int u = 0; u < n; u++) {
+                if (u != v && graph.adjMatrix[u][v] == 1) {
+                    hasIncoming = true;
+                    break;
+                }
+            }
+            if (!hasIncoming) result.push_back(v);
+        }
+        return result;
+    };
+
+    // Кандидаты в стоки: вершины с нулевой исходящей степенью
+    auto getSinkCandidates = [&]() -> vector<int> {
+        vector<int> result;
+        for (int v = 0; v < n; v++) {
+            bool hasOutgoing = false;
+            for (int u = 0; u < n; u++) {
+                if (u != v && graph.adjMatrix[v][u] == 1) {
+                    hasOutgoing = true;
+                    break;
+                }
+            }
+            if (!hasOutgoing) result.push_back(v);
+        }
+        return result;
+    };
+
+    // --- Выбор истока ---
+    vector<int> sources = getSourceCandidates();
+    if (sources.empty()) {
+        cout << "в графе нет вершин с нулевой входящей степенью — исток выбрать нельзя\n";
         return;
     }
 
+    int s;
+    if (sources.size() == 1) {
+        s = sources[0];
+        cout << "автоматически выбран исток: " << s << "\n";
+    } else {
+        cout << "доступные истоки (нет входящих рёбер): ";
+        for (int v : sources) cout << v << " ";
+        cout << "\nвведите источник: ";
+        cin >> s;
+        if (find(sources.begin(), sources.end(), s) == sources.end()) {
+            cout << "вершина " << s << " не является истоком\n";
+            return;
+        }
+    }
+
+    // --- Выбор стока ---
+    vector<int> sinks = getSinkCandidates();
+    if (sinks.empty()) {
+        cout << "в графе нет вершин с нулевой исходящей степенью — сток выбрать нельзя\n";
+        return;
+    }
+
+    int t;
+    if (sinks.size() == 1) {
+        t = sinks[0];
+        cout << "автоматически выбран сток: " << t << "\n";
+    } else {
+        cout << "доступные стоки (нет исходящих рёбер): ";
+        for (int v : sinks) cout << v << " ";
+        cout << "\nвведите сток: ";
+        cin >> t;
+        if (find(sinks.begin(), sinks.end(), t) == sinks.end()) {
+            cout << "вершина " << t << " не является стоком\n";
+            return;
+        }
+    }
+
+    if (s == t) {
+        cout << "исток и сток совпадают — это невозможно\n";
+        return;
+    }
+
+    // --- Запуск алгоритма ---
     fordFulkerson(graph, s, t);
 
     cout << "\nмаксимальный поток: " << graph.lastMaxFlow << endl;
@@ -1275,9 +1352,9 @@ void kruskal(MyGraph& graph) {
             int pv = findParent(edges[k].v, parent);
 
             if (pu == pv) {
-                k++;
+                k++; // ребро пропускается, т.к. создает цикл
             } else {
-                break;
+                break; 
             }
         }
 
@@ -1474,7 +1551,6 @@ END_LOOP:
 }
 
 // проверка эйлеровости, модификация при необходимости и построение
-// эйлерова цикла (алгоритм Флери) для неориентированного графа
 void eulerCycle(MyGraph& graph) {
     if (!graph.isGenerated) {
         cout << "сначала сгенерируйте граф\n";
@@ -1574,31 +1650,32 @@ void eulerCycle(MyGraph& graph) {
         if (degreeOf(v) > 0) { start = v; break; }
     }
 
-    // списки смежности Γ[v] по модифицированной матрице
-    vector<set<int>> gamma(n);
+    // алгоритм Флёри
+    // Γ[v] — список вершин, смежных с v
+    vector<set<int>> Gamma(n);
     for (int i = 0; i < n; i++)
         for (int j = 0; j < n; j++)
-            if (adj[i][j] == 1) gamma[i].insert(j);
+            if (adj[i][j] == 1) Gamma[i].insert(j);
 
-    // S — стек вершин
-    vector<int> cycle;
-    stack<int> S;
-    S.push(start); // v -> S
+    vector<int> cycle; // последовательность вершин эйлерова цикла
+    stack<int> S;      // S := ∅ — стек для хранения вершин
+
+    S.push(start); // v → S
 
     while (!S.empty()) {
         int v = S.top();
-        if (gamma[v].empty()) {
+        if (Gamma[v].empty()) {
             S.pop();
             cycle.push_back(v);
         } else {
-            int u = *gamma[v].begin();
+            int u = *Gamma[v].begin();
             S.push(u);
-            gamma[v].erase(u);
-            gamma[u].erase(v);
+            Gamma[v].erase(u);
+            Gamma[u].erase(v);
         }
     }
 
-    cout << "\n=== Эйлеров цикл (алгоритм Флери) ===\n";
+    cout << "\n=== Эйлеров цикл (алгоритм Флёри) ===\n";
     cout << "длина (рёбер): " << cycle.size() - 1 << "\n";
     cout << "цикл: ";
     for (size_t i = 0; i < cycle.size(); i++) {
@@ -1617,7 +1694,7 @@ static pair<int, int> normEdge(int u, int v) {
 static void printCut(const set<pair<int, int>>& cut) {
     cout << "{ ";
     for (const auto& e : cut) {
-        cout << "(" << e.first << "," << e.second << ") ";
+        cout << "(" << e.first << "-" << e.second << ") ";
     }
     cout << "}";
 }
@@ -1664,7 +1741,7 @@ void fundamentalCuts(MyGraph& graph) {
     for (int idx = 0; idx < m; idx++) {
         int a = treeEdges[idx].first;
         int b = treeEdges[idx].second;
-
+ 
         // обход по остову БЕЗ ребра (a,b): находим компоненту V1, содержащую a
         vector<bool> inV1(n, false);
         queue<int> q;
@@ -1676,15 +1753,14 @@ void fundamentalCuts(MyGraph& graph) {
             q.pop();
             for (int w = 0; w < n; w++) {
                 if (graph.ostAdjMatrix[u][w] == 1 && !inV1[w]) {
-                    // пропускаем удалённое ребро (a,b)
-                    if ((u == a && w == b) || (u == b && w == a)) continue;
+                    if ((u == a && w == b) || (u == b && w == a)) continue; // пропускаем удалённое ребро (a,b)
                     inV1[w] = true;
                     q.push(w);
                 }
             }
         }
 
-        // разрез S_e = все рёбра графа G между V1 и V2
+        // разрез S_e - все рёбра графа G между V1 и V2
         for (int u = 0; u < n; u++)
             for (int w = u + 1; w < n; w++)
                 if (graph.adjMatrix[u][w] == 1 && (inV1[u] != inV1[w]))
@@ -1695,8 +1771,8 @@ void fundamentalCuts(MyGraph& graph) {
     cout << "\n=== Фундаментальная система разрезов ===\n";
     cout << "коцикломатическое число m*(G) = p - 1 = " << m << "\n";
     for (int idx = 0; idx < m; idx++) {
-        cout << "S" << (idx + 1) << " (древесное ребро ("
-             << treeEdges[idx].first << "," << treeEdges[idx].second << ")): ";
+        cout << "S" << (idx + 1) << " (удаленное ребро ("
+             << treeEdges[idx].first << "-" << treeEdges[idx].second << ")): ";
         printCut(cuts[idx]);
         cout << "\n";
     }
@@ -1742,19 +1818,24 @@ int main() {
     
     while (true) {
         cout << "\nменю:\n";
+        cout << "=========== Lab 1 ===========\n";
         cout << "1. сгенерировать граф\n";
         cout << "2. сгенерировать весовую матрицу\n";
         cout << "3. сгенерировать матрицы стоимостей и пропускных способностей\n";
         cout << "4. найти центр и диаметр\n";
         cout << "5. метод шимбелла \n";
         cout << "6. подсчет маршрутов\n";
+        cout << "=========== Lab 2 ===========\n";
         cout << "7. обход графа в глубину (dfs)\n";
         cout << "8. поиск кратчайшего пути (Дейкстра)\n";
+        cout << "=========== Lab 3 ===========\n";
         cout << "9. алгоритм Форда-Фалкерсона\n";
         cout << "10. поток минимальной стоимости [2/3 * max]\n";
+        cout << "=========== Lab 4 ===========\n";
         cout << "11. найти число остовных деревьев по т. Кирхгофа\n";
         cout << "12. минимальный остов (алгоритм Краскала)\n";
         cout << "13. максимальное независимое множество вершин\n";
+        cout << "=========== Lab 5 ===========\n";
         cout << "14. проверка на эйлеров граф\n";
         cout << "15. фундаментальная система разрезов\n";
         cout << "0. выход\n";
